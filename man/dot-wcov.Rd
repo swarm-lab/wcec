@@ -27,7 +27,7 @@ matrix and the weighted mean of the data.
 \examples{
 m <- matrix(c(rnorm(500, 6), rnorm(500, 11, 3)), ncol = 2)
 w <- runif(500)
-gravitree:::.wcov(m, w)
+wcec:::.wcov(m, w)
 
 }
 \author{

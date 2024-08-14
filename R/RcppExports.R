@@ -25,9 +25,17 @@
 #' @examples
 #' m <- matrix(c(rnorm(500, 6), rnorm(500, 11, 3)), ncol = 2)
 #' w <- runif(500)
-#' gravitree:::.wcov(m, w)
+#' wcec:::.wcov(m, w)
 #'
 .wcov <- function(x, w) {
-    .Call('_wcec_wcov', PACKAGE = 'wcec', x, w)
+    .Call(`_wcec_wcov`, x, w)
+}
+
+.wmean <- function(x, w) {
+    .Call(`_wcec_wmean`, x, w)
+}
+
+.log_mvd <- function(x, mu, sigma) {
+    .Call(`_wcec_log_mvd`, x, mu, sigma)
 }
 

@@ -20,3 +20,5 @@ Imports:
     Rcpp,
     RcppEigen,
     Rfast
+Depends: 
+    R (>= 2.10)

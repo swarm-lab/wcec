@@ -12,20 +12,47 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // wcov
-Rcpp::List wcov(Eigen::MatrixXd& x, Eigen::VectorXd& w);
+Rcpp::List wcov(const Eigen::MatrixXd& x, const Eigen::VectorXd& w);
 RcppExport SEXP _wcec_wcov(SEXP xSEXP, SEXP wSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< Eigen::MatrixXd& >::type x(xSEXP);
-    Rcpp::traits::input_parameter< Eigen::VectorXd& >::type w(wSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type x(xSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type w(wSEXP);
     rcpp_result_gen = Rcpp::wrap(wcov(x, w));
+    return rcpp_result_gen;
+END_RCPP
+}
+// wmean
+Eigen::VectorXd wmean(const Eigen::MatrixXd& x, const Eigen::VectorXd& w);
+RcppExport SEXP _wcec_wmean(SEXP xSEXP, SEXP wSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type x(xSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type w(wSEXP);
+    rcpp_result_gen = Rcpp::wrap(wmean(x, w));
+    return rcpp_result_gen;
+END_RCPP
+}
+// log_mvd
+Eigen::VectorXd log_mvd(const Eigen::MatrixXd& x, const Eigen::VectorXd& mu, const Eigen::MatrixXd& sigma);
+RcppExport SEXP _wcec_log_mvd(SEXP xSEXP, SEXP muSEXP, SEXP sigmaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type x(xSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type mu(muSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type sigma(sigmaSEXP);
+    rcpp_result_gen = Rcpp::wrap(log_mvd(x, mu, sigma));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
     {"_wcec_wcov", (DL_FUNC) &_wcec_wcov, 2},
+    {"_wcec_wmean", (DL_FUNC) &_wcec_wmean, 2},
+    {"_wcec_log_mvd", (DL_FUNC) &_wcec_log_mvd, 3},
     {NULL, NULL, 0}
 };
 

@@ -1,28 +1,38 @@
+.sub2ind <- function(dims, subs) {
+  k <- c(1, cumprod(dims[-length(dims)]))
+  Rfast::rowsums((subs - 1) * matrix(k, nrow = nrow(subs), ncol = length(k), byrow = TRUE)) + 1
+}
+
 .init_density <- function(x, k, w) {
+  nr <- nrow(x)
+  nc <- ncol(x)
   n_blocks <- k + 2
-  block_list <- apply(x, 2, function(y) {
+  blocks <- matrix(NA_integer_, nr, nc)
+
+  for (i in seq_len(nc)) {
     breaks <- seq(
-      from = min(y, na.rm = TRUE),
-      to = max(y, na.rm = TRUE),
+      from = min(x[, i], na.rm = TRUE),
+      to = max(x[, i], na.rm = TRUE),
       length.out = n_blocks
     )
-    cut(y, breaks, labels = FALSE, include.lowest = TRUE, right = FALSE)
-  }, simplify = FALSE)
-  fq <- table(block_list)
+    blocks[, i] <- .bincode(x[, i], breaks, right = FALSE, include.lowest = TRUE)
+  }
+
+  fq <- tabulate(.sub2ind(rep(k + 1, nc), blocks), (k + 1)^nc)
   ord <- order(fq, decreasing = TRUE)
-  idx <- arrayInd(ord, dim(fq), dimnames(fq))
-  init <- matrix(NA, nrow = k, ncol = ncol(x))
-  blocks <- simplify2array(block_list)
+  idx <- arrayInd(ord, rep(k + 1, nc))
+  init <- matrix(NA, nrow = k, ncol = nc)
+  blocks <- Rfast::transpose(blocks)
 
   for (i in seq_len(k)) {
-    ix <- Rfast::rowAll(sweep(blocks, 2, idx[1, ], "=="))
-    init[i, ] <- apply(x[ix, , drop = FALSE], 2, weighted.mean, w = w[ix])
-    d <- Rfast::rowMaxs(sweep(idx, 2, idx[1, ])^2, TRUE)
+    ix <- Rfast::colAll(blocks == idx[1, ])
+    init[i, ] <- .wmean(x[ix, , drop = FALSE], w[ix])
+    d <- Rfast::rowMaxs(Rfast::eachrow(idx, idx[1, ], oper = "-")^2, TRUE)
     idx <- idx[d > sqrt(n_blocks), , drop = FALSE]
   }
 
   Rfast::rowMins(
-    Rfast::dista(x, init)
+    Rfast::dista(init, x, trans = FALSE, square = FALSE)
   )
 }
 
@@ -69,7 +79,7 @@
       stop("Not all values in `k` are integers.")
     }
 
-    suk <- sort(unique(k))
+    suk <- Rfast::sort_unique(k)
     lookup <- cbind(suk, as.numeric(as.factor(suk)))
     match(k, lookup)
   } else if (length(k) == 1) {
@@ -91,63 +101,50 @@
   }
 }
 
-.ce_gaussian <- function(n, cov) {
-  (n * log(2.0 * pi * exp(1)) + log(det(cov))) / 2
-}
-
 .cost_gaussian <- function(p, n, params) {
-  sum(
-    sapply(1:length(p), function(i) {
-      .ce_gaussian(p[i] * n, params[[i]]$cov)
-    })
-  )
-}
-
-.dist_gaussian <- function(x, p, mu, sigma) {
-  -log(p) - log(mvtnorm::dmvnorm(x, mean = mu, sigma = sigma, checkSymmetry = FALSE))
+  s <- 0
+  for (i in seq_along(p)) {
+    s <- s + (p[i] * n * log(2.0 * pi * exp(1)) + log(det(params[[i]]$cov))) / 2
+  }
+  s
 }
 
 .wcec <- function(x, k, w, iter_max) {
   n <- nrow(x)
+  nk <- max(k)
   out <- list(
     clustering = k,
-    probability = table(k) / n,
-    params = lapply(unique(k), function(clust) {
-      idx <- k == clust
-      wcec:::.wcov(
-        x[idx, , drop = FALSE],
-        w[idx]
-      )
+    probability = tabulate(k, nk) / n,
+    params = lapply(1:nk, function(j) {
+      idx <- k == j
+      .wcov(x[idx, , drop = FALSE], w[idx])
     }),
     iter = 0
   )
-  d <- matrix(Inf, nrow = n, ncol = length(out$params))
-  out$cost <- wcec:::.cost_gaussian(out$probability, n, out$params)
+  out$cost <- .cost_gaussian(out$probability, n, out$params)
+  d <- matrix(NA_real_, nrow = n, ncol = length(out$params))
 
   for (i in 1:iter_max) {
+    logP <- log(out$probability)
+
     for (j in seq_along(out$params)) {
-      d[, j] <- wcec:::.dist_gaussian(x, out$probability[j], out$params[[j]]$center, out$params[[j]]$cov)
+      d[, j] <- -logP[j] - .log_mvd(x, out$params[[j]]$center, out$params[[j]]$cov)
     }
 
-    new_clustering <- Rfast::rowMins(d)
-    new_clustering <- match(new_clustering, sort(unique(new_clustering)))
-    test <- all(new_clustering == out$clustering)
+    new_clustering <- Rfast::as_integer(Rfast::rowMins(d), FALSE)
+    test <- Rfast::all_equals(new_clustering, out$clustering)
     out$clustering <- new_clustering
 
     if (test == TRUE) {
       break
     } else {
-      out$params <- lapply(unique(out$clustering), function(clust) {
-        idx <- out$clustering == clust
-        wcec:::.wcov(
-          x[idx, , drop = FALSE],
-          w[idx]
-        )
-      })
+      for (j in 1:nk) {
+        idx <- out$clustering == j
+        out$params[[j]] <- .wcov(x[idx, , drop = FALSE], w[idx])
+      }
 
-      d <- d * Inf
-      out$probability <- table(out$clustering) / n
-      out$cost <- wcec:::.cost_gaussian(out$probability, n, out$params)
+      out$probability <- tabulate(out$clustering) / n
+      out$cost <- .cost_gaussian(out$probability, n, out$params)
     }
   }
 

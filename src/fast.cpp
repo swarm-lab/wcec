@@ -1,5 +1,5 @@
-#include <RcppEigen.h>
 // [[Rcpp::depends(RcppEigen)]]
+#include <RcppEigen.h>
 
 //' @name .wcov
 //'
@@ -25,23 +25,30 @@
 //' @examples
 //' m <- matrix(c(rnorm(500, 6), rnorm(500, 11, 3)), ncol = 2)
 //' w <- runif(500)
-//' gravitree:::.wcov(m, w)
+//' wcec:::.wcov(m, w)
 //'
 // [[Rcpp::export(.wcov)]]
-Rcpp::List wcov(Eigen::MatrixXd &x, Eigen::VectorXd &w) {
-  Eigen::VectorXd center(x.cols());
-  double ws = w.sum();
-  for (int i = 0; i < x.cols(); i++) {
-    center(i) = (x.col(i).array() * w.array()).sum() / ws;
-  }
-
-  int p = x.cols();
-  Eigen::VectorXd sqw = (w.array() / ws).cwiseSqrt();
-  Eigen::MatrixXd X = x.array().rowwise() - center.transpose().array();
-  Eigen::MatrixXd cov = Eigen::MatrixXd(p, p)
-                            .setZero()
-                            .selfadjointView<Eigen::Lower>()
-                            .rankUpdate(X.transpose() * sqw.asDiagonal());
-
+Rcpp::List wcov(const Eigen::MatrixXd &x, const Eigen::VectorXd &w) {
+  Eigen::VectorXd normW = w / w.sum();
+  Eigen::VectorXd center = normW.transpose() * x;
+  Eigen::MatrixXd normX = normW.cwiseSqrt().asDiagonal() * (x.rowwise() - center.transpose());
+  Eigen::MatrixXd cov = normX.transpose() * normX; // Slow
   return Rcpp::List::create(Rcpp::_["center"] = center, Rcpp::_["cov"] = cov);
+}
+
+// [[Rcpp::export(.wmean)]]
+Eigen::VectorXd wmean(const Eigen::MatrixXd &x, const Eigen::VectorXd &w) {
+  Eigen::VectorXd normW = w / w.sum();
+  return normW.transpose() * x;
+}
+
+// [[Rcpp::export(.log_mvd)]] 
+Eigen::VectorXd log_mvd(const Eigen::MatrixXd &x, const Eigen::VectorXd &mu,
+                         const Eigen::MatrixXd &sigma) {
+  Eigen::MatrixXd diff = x.rowwise() - mu.transpose();
+  Eigen::LLT<Eigen::MatrixXd> llt(sigma);
+  Eigen::MatrixXd sigmaInv = llt.solve(Eigen::MatrixXd::Identity(sigma.rows(), sigma.cols()));
+  Eigen::VectorXd exponent = -0.5 * (diff * sigmaInv).cwiseProduct(diff).rowwise().sum();
+  double constant = 0.5 * (mu.size() * std::log(2 * M_PI) + std::log(sigma.determinant()));
+  return exponent.array() - constant;
 }
